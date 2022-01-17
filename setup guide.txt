@@ -1,0 +1,47 @@
+L46 Project: Byzantine Attacks in Distributed Training
+Author: Andreea Zaharia (az396)
+
+Setup and installation guide
+
+
+
+The prototype has been written in a scientific notebook format. This guide covers how to run this scientific notebook on a virtual machine (VM) from a cloud provider, such as Amazon Web Services (AWS) or Google Cloud Platform (GCP). This can be done either by using the local runtime option in Google Colab or by running a local Jupyter Notebook server.
+
+Ideally, this VM would be powered by multiple GPUs, in order to extend the prototype to its full capacity. Unfortunately, a GPU-powered VM could not be accessed in the scope of the project due to quota restrictions from cloud providers, but I could access a simple CPU-only VM that helped assemble this setup guide for future reference.
+
+SSH TUNELLING
+
+For both options (Colab and Jupyter), one needs a localhost (127.0.0.1) format address for the notebook server. This can be easiest done via SSH tunelling. The SSH connection would be done as following, with the -L for tunelling on port 8888:
+
+ssh -i <SSH_KEY_FILENAME>.pem ubuntu@<EC2_ADDRESS>.<REGION>.compute.amazonaws.com -L 8888:localhost:8888
+
+
+DEPENDENCIES
+
+The dependencies and their version requirements are as follows:
+
+python>=3.8
+numpy>=1.22.0
+torch>=1.10.1
+setuptools>=59.5.0
+torchvision>=0.11.2
+torchviz>=0.0.2
+cuda>=11.2
+
+When setting up the VM, one can choose to boot with an image that already has these dependencies pre-installed. On AWS, that is the Deep Learning AMI (https://aws.amazon.com/machine-learning/amis/). On GCP, that is the Deep Learning VM Image (https://cloud.google.com/deep-learning-vm).
+
+
+CONNECTION DEPENDENCIES
+The jupyter_http_over_ws package needs to be installed and configured as an extension to the Jupyter notebook server. This would help create a local runtime in the VM, which can then be accessed via a localhost address from the host setup. This address can then be used as is from the browser, to work on the scientific notebook, or can be given as the address of the local runtime that Google Colab should use.
+
+The installation and configuration commands are as follows:
+pip3 install jupyter_http_over_ws
+jupyter serverextension enable --py jupyter_http_over_ws
+
+jupyter notebook \
+        --NotebookApp.allow_origin='https://colab.research.google.com' \ 
+        --port=8888 \  
+        --NotebookApp.port_retries=0 \ 
+        --NotebookApp.disable_check_xsrf=True
+
+
