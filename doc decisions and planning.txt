@@ -1,0 +1,126 @@
+L46 Project: Byzantine Attacks in Distributed Training
+Author: Andreea Zaharia (az396)
+
+Documentation of decision making and planning
+
+
+Preliminary tasks:
+- Read and take notes for 'Secure Distributed Training at Scale' [Gorbunov et al. 2021], as well as the supplementary materials.
+
+- Assemble a reading list of papers for background and preparation.
+
+- Understand the code base in the official repository linked in the paper (https://github.com/yandex-research/btard).
+
+- Secure a setup with multiple Nvidia GPUs of the same type, on a single host, in a virtual machine on AWS or similar.
+
+
+CHALLENGE: Finding a multi-GPU setup.
+
+I projected I would run this prototype on a multi-GPU single-host virtual machine (VM) from a major cloud provider. I worked on setting up a VM equipped with GPUs on three major providers: Amazon Web Services (AWS), Google Cloud Platform (GCP), and Microsoft Azure, but it turned out that none of them approves new users to use GPUs without a billing history. Unfortunately the project was set back by the need to submit quota increase applications for these services, which were all eventually rejected. 
+
+The unplanned lack of access to GPUs from cloud providers heavily restricted the experiments I could run in the scope of this assignment. Nonetheless, writing the code I learnt a lot about the open-source projects in scope and about distributed training in general. I also managed to create a toy (CPU-only) VM, which was useful to create the setup and installation guide attached in this repository.
+
+Consequently, I decided to adapt the code and run simulations of distributed training on a single GPU device. As my machine does not have an Nvidia GPU, I still needed access to a single GPU device and I chose Colab as a good way to access a GPU for a small project.
+
+Calling nvidia-smi on Colab we get the following report. This is the configuration on which all development and experiments were done:
++-----------------------------------------------------------------------------+
+| NVIDIA-SMI 495.46       Driver Version: 460.32.03    CUDA Version: 11.2     |
+|-------------------------------+----------------------+----------------------+
+| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
+|                               |                      |               MIG M. |
+|===============================+======================+======================|
+|   0  Tesla P100-PCIE...  Off  | 00000000:00:04.0 Off |                    0 |
+| N/A   34C    P0    26W / 250W |      0MiB / 16280MiB |      0%      Default |
+|                               |                      |                  N/A |
++-------------------------------+----------------------+----------------------+
+                                                                               
++-----------------------------------------------------------------------------+
+| Processes:                                                                  |
+|  GPU   GI   CI        PID   Type   Process name                  GPU Memory |
+|        ID   ID                                                   Usage      |
+|=============================================================================|
+|  No running processes found                                                 |
++-----------------------------------------------------------------------------+
+
+New tasks:
+- Adapt the code for BTARD on ResNet to run on a single physical GPU. Debug communication errors.
+
+- ResNet is too big for training on a single device in reasonable time => Devise a smaller learning task for good iteration times in the project timeline.
+
+- Implement a flexible configuration module (class Config) that is decoupled from the main experiments process and can be sent as an object to each process.
+
+- Find the maximum number of processes ('virtual training workers') accepted by CUDA without communication errors. <Found it crashes above 6.> Try to debug and see what is happening.
+
+Setup decisions:
+- Scientific notebook environment, to be able to conveniently mix the Python code with Bash scripts if ever needed and for running experiments with snippets of code for plotting. 
+
+- Google Colab Pro as a development environment because it provides all necessary functionality for scientific notebooks, while running on cloud runtimes that have Nvidia GPUs. 
+
+- I first migrated the necessary parts of their implementation to a scientifc notebook format, with small, nicely organised, cells. This proved however to be an issue with isolating processes when running through torch.multiprocessing, so I had to reorganise into files and run with "!python experiments.py" instead. Still needed the GPU, so I decided to keep using Colab, with "%writefile". While not very clean, it is a perfectly working solution. 
+
+Side task to keep in mind: 
+- Lower the time it takes to run an experiment to something reasonable (under two hours would be good). This is both to allow me to develop faster and try out different configuration to get good experiments and also because Google Colab disconnects you if what you are running takes too long. 
+
+Devising the learning task - decisions:
+
+- Searched a reasonably sized training task and decided on MNIST, as it is an appropriate size and being an easy task for a convolutional model means that few epochs are needed, which is good. 
+
+- Decided that I do not want to optimise the learning rate and the batch size, but rather the oposite, because it would be actually useful if the model converged a bit slower leaving more time to figure out how the attackers impact convergence and optimisation. Decided to choose a big batch size to make it a bit faster too.
+
+Next tasks:
+- Adapt label-related attacks where necessary.
+- Evaluate the algorithm with the new model and the new dataset, with the experiments from the paper.
+
+Challenge: DelayedGradient crashes after the initial attack, at the time when the delayed gradient should actually come in. 
+
+- Debug DelayedGradient. => Issues with how the inter-process communication works when the process tries to join back in later, when doing virtual workers on a single device. 
+
+Decided to postpone debugging/using DelayedGradient, due to timeline considerations, as debugging multithreaded CUDA code proves to be challenging. Also, the evaluation in the original paper shows that DelayedGradient does not make much of a difference, so it might be reasonable to expect little to no impact to such a small model too. Come back to this at the end if there's time.
+
+Next tasks:
+- Work on lowering the time taken by an experiment.
+- Decide on tau.
+- Find an interesting attack start point.
+- Experiment with the batch size and the learning rate. 
+
+
+
+I decided to evaluate a single clipping constant and set it to a moderate value. 
+
+To lower the time taken by an experiment, I lowered the number of seeds drawn and iterated over for an experiment from five, as it was in the paper, to three.
+
+
+Implementing new attacks - tasks and decisions:
+- Look through literature for new gradient altering Byzantine attacks. => Found others very similar to what they did.
+- Devise and implement a new attack that uses other internal rules than the others. => Created Label Shuffle.
+- Create an attack that only applies small changes to the parameters. I decided to do this because the others were all executing changes of large magnitude and I was wondering how an attacker doing small changes would perform.
+
+Running experiments:
+- Find a good number for the maximum number of epochs per worker, to stop the training not too early and not too late. 
+
+ => Here I chose four, which was probably on the cautious side, as it feels a bit too much to wait for 900 steps. Anyway, at this point I was not pushing to reduce the experiment time anymore, as it seemed to run at a decent pace.
+
+
+- Do smaller toy experiments to make sure that logging as implemented works.
+
+- Install and explore with TensorBoard.
+
+- Moved to the full experiment.
+
+Challenge: many runs crashed in Colab due to daily usage restrictions or inactivity windows. 
+
+
+After many tries, I managed to do a full run and get all the data. The experiment took about 1.5 hours to complete. 
+
+Tasks:
+- Figure out a way to show axes labels and a legend in TensorBoard => It seems like there is no way to do this so I had to do it manually by cropping screenshots and labelling axes in image editors (quite unpleasant and they did not end up looking very nice).
+
+- Gather notes from the preliminary background reading I have done on the subject and write up a background survey for the report 
+
+- Explain the algorithm and go into details about the assumptions in the paper, the assumptions implied but not stated, and the assumptions I introduced with the implementation. 
+
+- Explore the data results obtained and find interesting plots to show in the results. Comment on the results.
+
+
+
